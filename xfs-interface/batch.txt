@@ -1,0 +1,10 @@
+load --init /home/vasanth289/myexpos/expl/samples/odd_numbers.xsm
+load --idle /home/vasanth289/myexpos/expl/samples/idle_sample.xsm
+load --exhandler /home/vasanth289/myexpos/spl/spl_progs/haltprog.xsm
+load --int=timer /home/vasanth289/myexpos/spl/spl_progs/s14_timer.xsm
+load --int=10 /home/vasanth289/myexpos/spl/spl_progs/s14_int10.xsm
+load --library /home/vasanth289/myexpos/expl/library.lib
+load --int=7 /home/vasanth289/myexpos/spl/spl_progs/sample_int7.xsm
+load --os /home/vasanth289/myexpos/spl/spl_progs/os_startup_s13.xsm
+load --module 7 /home/vasanth289/myexpos/spl/spl_progs/s14_mod7.xsm
+load --module 5 /home/vasanth289/myexpos/spl/spl_progs/s14_mod5.xsm

@@ -1,0 +1,123 @@
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 9;
+
+alias userSP R0;
+userSP = SP;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias fileNameAddr R1;
+alias filename R2;
+
+fileNameAddr = ([PTBR + 2 * ((userSP - 4) / 512)] * 512) + ((userSP - 4) % 512);
+filename = [fileNameAddr];
+
+alias idx R3;
+alias fname R4;
+alias ftype R5;
+
+idx = 0;
+while(idx < MAX_FILE_NUM) do
+	fname = [INODE_TABLE + idx*16 + 1];
+	ftype = [INODE_TABLE + idx*16];
+	if (fname == filename && ftype == EXEC) then
+		break;
+	endif;
+	idx = idx + 1;
+endwhile;
+
+if (idx == MAX_FILE_NUM) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+multipush(R0, R1, R2, R3, R4, R5);
+R1 = 3;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+call PROCESS_MANAGER;
+multipop(R0, R1, R2, R3, R4, R5);
+
+alias userAreaPgNo R4;
+userAreaPgNo = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11];
+
+[MEMORY_FREE_LIST + userAreaPgNo] = [MEMORY_FREE_LIST + userAreaPgNo] + 1;
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+SP = userAreaPgNo * 512;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = RUNNING;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 7] = idx;
+
+PTBR = PAGE_TABLE_BASE + [SYSTEM_STATUS_TABLE + 1]*20;
+
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+alias i R5;
+i = 0;
+while (i < 2) do
+	multipush(R0, R1, R2, R3, R4, R5);
+	R1 = 1;
+	call MEMORY_MANAGER;
+	[PTBR + 16 + i*2] = R0;
+	[PTBR + 17 + i*2] = "0110";
+	multipop(R0, R1, R2, R3, R4, R5);
+	i = i + 1;
+endwhile;
+
+i = 0;
+while (i < 2) do
+	multipush(R0, R1, R2, R3, R4, R5);
+	R1 = 1;
+	call MEMORY_MANAGER;
+	[PTBR + 4 + i*2] = R0;
+	[PTBR + 5 + i*2] = "0110";
+	multipop(R0, R1, R2, R3, R4, R5);
+	i = i + 1;
+endwhile;
+
+alias nblock R6;
+nblock = 0;
+i = 0;
+while(i < 4) do
+	if ([INODE_TABLE + idx*16 + 8 + i] == -1) then
+		break;
+	else
+		nblock = nblock + 1;
+	endif;
+	i = i + 1;
+endwhile;
+
+i = 0;
+while (i < nblock) do
+	multipush(R0, R1, R2, R3, R4, R5, R6);
+	R1 = 1;
+	call MEMORY_MANAGER;
+	[PTBR + 8 + i*2] = R0;
+	[PTBR + 9 + i*2] = "0100";
+	multipop(R0, R1, R2, R3, R4, R5, R6);
+	i = i + 1;
+endwhile;
+
+alias blocknum R7;
+alias pagenum R8;
+i = 0;
+while(i < 4) do
+	if ([INODE_TABLE + idx*16 + 8 + i] == -1) then
+		break;
+	else
+		blocknum = [INODE_TABLE + idx*16 + 8 + i];
+		pagenum = [PTBR + 8 + i*2];
+		loadi(pagenum, blocknum);
+	endif;
+	i = i + 1;
+endwhile;
+
+[[PTBR + 16] *  512] = [[PTBR + 8] * 512 + 1];
+
+SP = 8 * 512;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+ireturn;
