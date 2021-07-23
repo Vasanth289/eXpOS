@@ -1,0 +1,52 @@
+type
+node
+{
+	int data;
+	node next;
+}
+endtype
+int main()
+{
+decl
+	int temp, n, i, k, ret;
+	str msg1, msg2, msg3;
+	node head, new, temp1;
+enddecl
+begin
+	head = null;
+	
+	msg1 = "Enter n";
+	temp = exposcall("Write",-2,msg1);
+	temp = exposcall("Read",-1,n);
+	
+	msg2 = "Enter element";
+	temp = exposcall("Write",-2,msg2);
+	
+	ret = initialize();
+	
+	i = 0;
+	while(i < n) do
+		temp = exposcall("Read",-1,k);
+		new = alloc();
+		new.data = k;
+		new.next = null;
+		
+		if(head == null) then
+			head = new;
+		else
+			temp1.next = new;
+		endif;
+		temp1 = new;
+		i = i + 1;
+	endwhile;
+	
+	msg3 = "Linked list";
+	temp = exposcall("Write",-2,msg3);
+	temp1 = head;
+	while(temp1 != null) do
+		temp = exposcall("Write",-2,temp1.data);
+		temp1 = temp1.next;
+	endwhile;
+	return 0;
+end
+}

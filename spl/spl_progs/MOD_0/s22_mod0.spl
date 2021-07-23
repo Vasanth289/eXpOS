@@ -1,0 +1,92 @@
+alias functionNum R1;
+alias currentPID R2;
+
+// acquire disk()
+if (functionNum == 3) then
+	while ([DISK_STATUS_TABLE + 0] == 1) do
+		[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_DISK;
+		multipush(R1, R2);
+		call SCHEDULER;
+		multipop(R1, R2);
+	endwhile;
+	[DISK_STATUS_TABLE + 0] = 1;
+	[DISK_STATUS_TABLE + 4] = currentPID;
+	[INODE_TABLE + 13] = [INODE_TABLE + 13] + 1;
+	return;
+endif;
+
+// acquire semaphore
+if (functionNum == 6) then
+	alias i R3;
+	i = 0;
+	while (i < 32) do
+		if([SEMAPHORE_TABLE + i*4 + 1] == 0) then
+			[SEMAPHORE_TABLE + i*4 + 1] = 1;
+			[SEMAPHORE_TABLE + i*4 + 0] = -1;
+			R0 = i;
+			return;
+		endif;
+		i = i + 1;
+	endwhile;
+	if (i == 32) then
+		R0 = -1;
+		return;
+	endif;
+endif;
+
+// release semaphore
+if (functionNum == 7) then
+	alias semidx R3;
+	
+	if([SEMAPHORE_TABLE + semidx*4] != -1) then
+		[SEMAPHORE_TABLE + semidx*4] = -1;
+		alias i R4;
+		i = 0;
+		while (i < 16) do
+			if ([PROCESS_TABLE + i*16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + i*16 + 5] == semidx) then
+				[PROCESS_TABLE + i*16 + 4] = READY;
+			endif;
+			i = i + 1;
+		endwhile;
+	endif;
+	
+	[SEMAPHORE_TABLE + semidx*4 + 1] = [SEMAPHORE_TABLE + semidx*4 + 1] - 1;
+	R0 = 0;
+	return;
+endif;
+
+// acquire terminal()
+if (functionNum == 8) then
+	while ([TERMINAL_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_TERMINAL;
+		multipush(R1, R2);
+		call SCHEDULER;
+		multipop(R1, R2);
+	endwhile;
+
+	[TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currentPID;
+	return;
+endif;
+
+// release terminal()
+if (functionNum == 9) then
+	if (currentPID != [TERMINAL_STATUS_TABLE + 1]) then
+		R0 = -1;
+		return;
+	else
+		[TERMINAL_STATUS_TABLE] = 0;
+		alias PID R3;
+		alias process_table R4;
+		PID = 0;
+		while (PID < 16) do
+			process_table = PROCESS_TABLE + PID * 16;
+			if([process_table + 4] == WAIT_TERMINAL) then
+				[process_table + 4] = READY;
+			endif;
+			PID = PID + 1;
+		endwhile;
+		R0 = 0;
+		return;
+	endif;
+endif;

@@ -21,7 +21,6 @@ if (funcNum == 1) then
 		endif;
 		i = i + 1;
 	endwhile;
-	breakpoint;
 	return;
 endif;
 
@@ -40,6 +39,5 @@ if (funcNum == 2) then
 		endif;
 		i = i + 1;
 	endwhile;
-	breakpoint;
 	return;
 endif;

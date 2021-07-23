@@ -1,0 +1,98 @@
+alias userSP R0;
+userSP = SP;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+
+alias syscall R1;
+syscall = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+// getpid
+if (syscall == 11) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 11;
+	
+	alias pid R2;
+	pid = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 1];
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = pid;
+	
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+endif;
+
+// getppid
+if (syscall == 12) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 12;
+	
+	alias ppid R2;
+	ppid = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 2];
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = ppid;
+	
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+endif;
+
+// wait
+if (syscall == 13) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 13;
+	
+	alias waitPID R2;
+	waitPID = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	if ((waitPID != [SYSTEM_STATUS_TABLE + 1]) && ([PROCESS_TABLE + (waitPID * 16) + 4] != TERMINATED)) then
+		if(waitPID >= 0 && waitPID <= 15) then
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 4] = WAIT_PROCESS;
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 5] = waitPID;
+			multipush(R0, R1, R2);
+			call SCHEDULER;
+			multipop(R0, R1, R2);
+			
+			if ([SYSTEM_STATUS_TABLE + 1] == 1) then
+				print "mem use";
+				R8 = [INODE_TABLE + 12];
+				print R8;
+				print "disk access";
+				R8 = [INODE_TABLE + 13];
+				print R8;
+				print "switches";
+				R8 = [INODE_TABLE + 14];
+				print R8;
+			endif;
+			
+			[INODE_TABLE + 12] = 0;
+			[INODE_TABLE + 13]= 0;
+			[INODE_TABLE + 14] = 0;
+
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+			SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+			ireturn;
+		else
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+			SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+			ireturn;
+		endif;
+	else
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+endif;
+
+// signal
+if (syscall == 14) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 14;
+	alias i R2;
+	i = 0;
+	while (i < 16) do
+		if ([PROCESS_TABLE + (i * 16) + 4] == WAIT_PROCESS) then
+			[PROCESS_TABLE + (i * 16) + 4] = READY;
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		endif;
+		i = i + 1;
+	endwhile;
+endif;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;

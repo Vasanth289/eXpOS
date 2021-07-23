@@ -1,0 +1,89 @@
+alias userSP R0;
+userSP = SP;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+
+alias syscall R1;
+syscall = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+// semget()
+if (syscall == 17) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 17;
+	
+	alias UPAN R2;
+	alias i R3;
+
+	UPAN = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11];
+	
+	i = 0;
+	while (i < 8) do
+		if([(UPAN * 512) + 496 + i*2] == -1) then
+			[(UPAN * 512) + 496 + i*2] = SEMAPHORE;
+			
+			multipush(R0, R1, R2, R3);
+			R1 = 6;       //acquire semaphore
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			call RESOURCE_MANAGER;
+			R4 = R0;
+			multipop(R0, R1, R2, R3);
+			
+			if (R4 == -1) then
+				[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;
+				[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+				SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+				ireturn;
+			else
+				[(UPAN * 512) + 496 + i*2 + 1] = R4;
+				[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = i;
+				[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+				SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+				ireturn;
+			endif;
+		endif;
+		i = i + 1;
+	endwhile;
+	if (i == 8) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+endif;
+
+//semrelease()
+if (syscall == 18) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 18;
+	
+	alias UPAN R2;
+	alias semid R3;
+	
+	UPAN = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11];
+	semid = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+	
+	if (semid < 0 || semid > 7 || [(UPAN * 512) + 496 + semid*2] != SEMAPHORE) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	R4 = [(UPAN * 512) + 496 + semid*2 + 1];
+	multipush(R0, R1, R2, R3);
+	R1 = 7;      //release semaphore
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = R4;
+	call RESOURCE_MANAGER;
+	R4 = R0;
+	multipop(R0, R1, R2, R3);
+	
+	[(UPAN * 512) + 496 + semid*2] = -1;
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+endif;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;
